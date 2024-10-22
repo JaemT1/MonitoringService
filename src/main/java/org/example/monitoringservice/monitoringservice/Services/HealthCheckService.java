@@ -1,13 +1,18 @@
 package org.example.monitoringservice.monitoringservice.Services;
 
-
 import lombok.RequiredArgsConstructor;
 import org.example.monitoringservice.monitoringservice.Entities.HealthResponse;
+import org.example.monitoringservice.monitoringservice.Entities.MailDTO;
 import org.example.monitoringservice.monitoringservice.Entities.MonitoredService;
 import org.example.monitoringservice.monitoringservice.Repositories.MonitoredServiceRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,7 +24,9 @@ public class HealthCheckService {
 
     private final MonitoredServiceRepository repository;
     private final RestTemplate restTemplate = new RestTemplate();
-    private final MailService mailService;
+
+    // URL del microservicio de correo
+    private static final String MAIL_SERVICE_URL = "http://localhost:8004/mail/enviar";
 
     // Registrar un nuevo microservicio
     public MonitoredService registerService(MonitoredService service) {
@@ -44,7 +51,6 @@ public class HealthCheckService {
             LocalDateTime now = LocalDateTime.now();
 
             for (MonitoredService serviceAux : services) {
-                // Calculamos si ha pasado suficiente tiempo desde la última verificación
                 if (shouldCheckService(serviceAux, now)) {
                     checkServiceHealth(serviceAux, now);
                 }
@@ -57,46 +63,63 @@ public class HealthCheckService {
     // Verificar si un microservicio debe ser chequeado
     private boolean shouldCheckService(MonitoredService service, LocalDateTime now) {
         LocalDateTime lastChecked = service.getLastChecked();
-
-        // Si nunca se ha chequeado o ha pasado más tiempo que la frecuencia definida, se debe chequear
-        return (lastChecked == null) ||
-                (lastChecked.plusSeconds(service.getFrequency()).isBefore(now));
+        return (lastChecked == null) || (lastChecked.plusSeconds(service.getFrequency()).isBefore(now));
     }
 
     // Realizar la verificación de salud del servicio
     private void checkServiceHealth(MonitoredService service, LocalDateTime now) {
         try {
-            // Realizar la llamada al endpoint de salud y mapear la respuesta al objeto HealthResponse
             HealthResponse response = restTemplate.getForObject(service.getEndpoint(), HealthResponse.class);
 
-            // Verificar que la respuesta no sea nula y el estado del servicio sea "UP"
             if (response != null && "UP".equals(response.getStatus())
                     && response.getChecks() != null
                     && "READY".equals(response.getChecks().getReadiness().getStatus())
                     && "ALIVE".equals(response.getChecks().getLiveness().getStatus())) {
 
-                service.setHealthy(true);  // El servicio está "healthy" si todo es correcto
+                service.setHealthy(true);  // El servicio está "healthy"
             } else {
-                // Si la respuesta no es "UP", el servicio se considera "down"
-                service.setHealthy(false);
-                mailService.sendAlert("Alerta de servicio caído",
-                        "El servicio " + service.getName() + " no está respondiendo correctamente o no está UP.",
-                        service.getNotificationEmails().toArray(new String[0]));
+                service.setHealthy(false);  // El servicio está "down"
+                sendAlertToMailService(service);
             }
-
         } catch (Exception e) {
-            // Si ocurre una excepción, marcamos el servicio como "down" y enviamos un correo de alerta
-            service.setHealthy(false);
-            mailService.sendAlert("Alerta de servicio caído",
-                    "El servicio " + service.getName() + " no está respondiendo correctamente.",
-                    service.getNotificationEmails().toArray(new String[0]));
+            service.setHealthy(false);  // Excepción: El servicio está "down"
+            sendAlertToMailService(service);
         }
 
-        // Actualizar la última vez que se verificó este servicio
         service.setLastChecked(now);
-        repository.save(service);  // Guardamos el nuevo estado en la base de datos
+        repository.save(service);
     }
 
+    // Método para enviar la alerta al microservicio de correo
+    private void sendAlertToMailService(MonitoredService service) {
+        try {
+            // Construir el DTO del correo
+            MailDTO mailDTO = new MailDTO(
+                    "Alerta de servicio caído",
+                    "El servicio " + service.getName() + " no está respondiendo correctamente.",
+                    service.getNotificationEmails().toArray(new String[0])
+            );
 
+            // Configurar las cabeceras (headers)
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            // Crear la petición HTTP con el cuerpo y headers
+            HttpEntity<MailDTO> request = new HttpEntity<>(mailDTO, headers);
+
+            // Hacer la petición POST al microservicio de correo
+            ResponseEntity<String> response = restTemplate.exchange(
+                    MAIL_SERVICE_URL,
+                    HttpMethod.POST,
+                    request,
+                    String.class
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                System.out.println("Error al enviar alerta de correo: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            System.out.println("Error al enviar alerta de correo: " + e.getMessage());
+        }
+    }
 }
-
