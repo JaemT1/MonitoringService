@@ -1,10 +1,12 @@
 package org.example.monitoringservice.monitoringservice.Services;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.example.monitoringservice.monitoringservice.Entities.HealthResponse;
 import org.example.monitoringservice.monitoringservice.Entities.MailDTO;
 import org.example.monitoringservice.monitoringservice.Entities.MonitoredService;
 import org.example.monitoringservice.monitoringservice.Repositories.MonitoredServiceRepository;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -24,6 +26,8 @@ public class HealthCheckService {
 
     private final MonitoredServiceRepository repository;
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper;
+    private final RabbitTemplate rabbitTemplate;
 
     // URL del microservicio de correo
     private static final String MAIL_SERVICE_URL = "http://localhost:8004/mail/enviar";
@@ -103,24 +107,30 @@ public class HealthCheckService {
                     service.getNotificationEmails().toArray(new String[0])
             );
 
-            // Configurar las cabeceras (headers)
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            if (mailDTO.async()) {
+                String mailJson = objectMapper.writeValueAsString(mailDTO);
+                String mailsQueue = "mailsQueue";
+                rabbitTemplate.convertAndSend(mailsQueue, mailJson);
+            } else {
 
-            // Crear la petición HTTP con el cuerpo y headers
-            HttpEntity<MailDTO> request = new HttpEntity<>(mailDTO, headers);
+                // Configurar las cabeceras (headers)
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // Hacer la petición POST al microservicio de correo
-            ResponseEntity<String> response = restTemplate.exchange(
-                    MAIL_SERVICE_URL,
-                    HttpMethod.POST,
-                    request,
-                    String.class
-            );
+                // Crear la petición HTTP con el cuerpo y headers
+                HttpEntity<MailDTO> request = new HttpEntity<>(mailDTO, headers);
 
+                // Hacer la petición POST al microservicio de correo
+                ResponseEntity<String> response = restTemplate.exchange(
+                        MAIL_SERVICE_URL,
+                        HttpMethod.POST,
+                        request,
+                        String.class
+                );
             if (!response.getStatusCode().is2xxSuccessful()) {
                 System.out.println("Error al enviar alerta de correo: " + response.getStatusCode());
             }
+        }
         } catch (Exception e) {
             System.out.println("Error al enviar alerta de correo: " + e.getMessage());
         }
