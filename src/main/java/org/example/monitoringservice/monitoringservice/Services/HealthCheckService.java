@@ -97,6 +97,7 @@ public class HealthCheckService {
             MailDTO mailDTO = new MailDTO(
                     "Alerta de servicio caído",
                     "El servicio " + service.getName() + " no está respondiendo correctamente.",
+                    true,
                     service.getNotificationEmails().toArray(new String[0])
             );
 
