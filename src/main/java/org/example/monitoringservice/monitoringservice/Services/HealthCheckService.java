@@ -2,6 +2,7 @@ package org.example.monitoringservice.monitoringservice.Services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.example.monitoringservice.monitoringservice.Configurations.RabbitMQConfig;
 import org.example.monitoringservice.monitoringservice.Entities.HealthResponse;
 import org.example.monitoringservice.monitoringservice.Entities.MailDTO;
 import org.example.monitoringservice.monitoringservice.Entities.MonitoredService;
@@ -109,7 +110,7 @@ public class HealthCheckService {
 
             if (mailDTO.async()) {
                 String mailJson = objectMapper.writeValueAsString(mailDTO);
-                String mailsQueue = "mailsQueue";
+                String mailsQueue = RabbitMQConfig.QUEUE;
                 rabbitTemplate.convertAndSend(mailsQueue, mailJson);
             } else {
 
