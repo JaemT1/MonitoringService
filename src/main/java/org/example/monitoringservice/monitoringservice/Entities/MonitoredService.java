@@ -18,9 +18,11 @@ public class MonitoredService {
     private Long id;
 
     @NotBlank
+    @Column(unique=true, nullable=false)
     private String name;
 
     @NotBlank
+    @Column(unique=true, nullable=false)
     private String endpoint;
 
     @NotNull

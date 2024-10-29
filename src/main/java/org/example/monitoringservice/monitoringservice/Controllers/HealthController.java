@@ -27,7 +27,7 @@ public class HealthController {
 
     // Registrar un nuevo microservicio para monitoreo
     @PostMapping("/register")
-    public ResponseEntity<?> registerService(@Validated @RequestBody MonitoredServiceDTO serviceDTO, HttpServletRequest request) {
+    public ResponseEntity<?> registerService(@RequestBody MonitoredServiceDTO serviceDTO, HttpServletRequest request) {
         try {
             MonitoredService service = new MonitoredService();
             service.setName(serviceDTO.getName());
@@ -40,13 +40,13 @@ public class HealthController {
             MonitoredService savedService = healthCheckService.registerService(service);
 
             ApiSuccess apiSuccess = new ApiSuccess(
-                    HttpStatus.OK.value(),
-                    HttpStatus.OK.getReasonPhrase(),
-                    "Servicio añadido con exito",
+                    HttpStatus.CREATED.value(),
+                    HttpStatus.CREATED.getReasonPhrase(),
+                    "Servicio añadido con éxito",
                     request.getRequestURI()
             );
 
-            return ResponseEntity.ok(apiSuccess);
+            return ResponseEntity.status(HttpStatus.CREATED).body(apiSuccess);
         } catch (Exception e) {
             ApiError apiError = new ApiError(
                     HttpStatus.INTERNAL_SERVER_ERROR.value(),
@@ -60,14 +60,118 @@ public class HealthController {
 
     // Obtener el estado de salud de todos los microservicios registrados
     @GetMapping
-    public ResponseEntity<List<MonitoredService>> getAllServicesHealth() {
-        return ResponseEntity.ok(healthCheckService.getAllServices());
+    public ResponseEntity<?> getAllServicesHealth(HttpServletRequest request) {
+        try {
+            List<MonitoredService> services = healthCheckService.getAllServices();
+            if (services.isEmpty()) {
+                throw new Exception("No se encontraron servicios");
+            }
+            ApiSuccess apiSuccess = new ApiSuccess(
+                    HttpStatus.OK.value(),
+                    HttpStatus.OK.getReasonPhrase(),
+                    "Servicios obtenidos con éxito",
+                    request.getRequestURI(),
+                    services
+            );
+            return ResponseEntity.ok(apiSuccess);
+        } catch (Exception e) {
+            ApiError apiError = new ApiError(
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                    "Error al obtener los servicios",
+                    request.getRequestURI()
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiError);
+        }
     }
 
     // Obtener el estado de salud de un microservicio específico
     @GetMapping("/{name}")
-    public ResponseEntity<MonitoredService> getServiceHealth(@PathVariable String name) {
-        Optional<MonitoredService> service = healthCheckService.getServiceByName(name);
-        return service.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    public ResponseEntity<?> getServiceHealth(@PathVariable String name, HttpServletRequest request) {
+        try {
+            Optional<MonitoredService> service = healthCheckService.getServiceByName(name);
+            if (service.isPresent()) {
+                ApiSuccess apiSuccess = new ApiSuccess(
+                        HttpStatus.OK.value(),
+                        HttpStatus.OK.getReasonPhrase(),
+                        "Servicio encontrado",
+                        request.getRequestURI(),
+                        service
+                );
+                return ResponseEntity.ok(apiSuccess);
+            } else {
+                ApiError apiError = new ApiError(
+                        HttpStatus.NOT_FOUND.value(),
+                        HttpStatus.NOT_FOUND.getReasonPhrase(),
+                        "Servicio no encontrado",
+                        request.getRequestURI()
+                );
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(apiError);
+            }
+        } catch (Exception e) {
+            ApiError apiError = new ApiError(
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                    "Error al obtener el servicio",
+                    request.getRequestURI()
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiError);
+        }
+    }
+
+    // Eliminar un microservicio por ID
+    @DeleteMapping("/{name}")
+    public ResponseEntity<?> deleteServiceById(@PathVariable String name, HttpServletRequest request) {
+        try {
+            boolean deleted = healthCheckService.deleteServiceByName(name);
+            if (deleted) {
+                ApiSuccess apiSuccess = new ApiSuccess(
+                        HttpStatus.OK.value(),
+                        HttpStatus.OK.getReasonPhrase(),
+                        "Servicio eliminado con éxito",
+                        request.getRequestURI()
+                );
+                return ResponseEntity.ok(apiSuccess);
+            } else {
+                ApiError apiError = new ApiError(
+                        HttpStatus.NOT_FOUND.value(),
+                        HttpStatus.NOT_FOUND.getReasonPhrase(),
+                        "Servicio no encontrado",
+                        request.getRequestURI()
+                );
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(apiError);
+            }
+        } catch (Exception e) {
+            ApiError apiError = new ApiError(
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                    "Error al eliminar el servicio",
+                    request.getRequestURI()
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiError);
+        }
+    }
+
+    // Eliminar todos los microservicios
+    @DeleteMapping("/all")
+    public ResponseEntity<?> deleteAllServices(HttpServletRequest request) {
+        try {
+            healthCheckService.deleteAllServices();
+            ApiSuccess apiSuccess = new ApiSuccess(
+                    HttpStatus.OK.value(),
+                    HttpStatus.OK.getReasonPhrase(),
+                    "Todos los servicios eliminados con éxito",
+                    request.getRequestURI()
+            );
+            return ResponseEntity.ok(apiSuccess);
+        } catch (Exception e) {
+            ApiError apiError = new ApiError(
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                    "Error al eliminar todos los servicios",
+                    request.getRequestURI()
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiError);
+        }
     }
 }

@@ -48,6 +48,20 @@ public class HealthCheckService {
         return repository.findByName(name);
     }
 
+    // Eliminar un microservicio por nombre
+    public boolean deleteServiceByName(String name) {
+        if (repository.existsByName(name)) {
+            repository.deleteByName(name);
+            return true;
+        }
+        return false;
+    }
+
+    // Eliminar todos los microservicios
+    public void deleteAllServices() {
+        repository.deleteAll();
+    }
+
     // Monitorear todos los servicios cada 60 segundos
     @Scheduled(fixedRate = 60000)
     public void monitorServices() {
@@ -95,7 +109,7 @@ public class HealthCheckService {
         repository.save(service);
     }
 
-    // Método para enviar la alerta al microservicio de correo
+    // Metodo para enviar la alerta al microservicio de correo
     private void sendAlertToMailService(MonitoredService service) {
         try {
             // Construir el DTO del correo
@@ -128,10 +142,10 @@ public class HealthCheckService {
                         request,
                         String.class
                 );
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                System.out.println("Error al enviar alerta de correo: " + response.getStatusCode());
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    System.out.println("Error al enviar alerta de correo: " + response.getStatusCode());
+                }
             }
-        }
         } catch (Exception e) {
             System.out.println("Error al enviar alerta de correo: " + e.getMessage());
         }

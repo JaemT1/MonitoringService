@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface MonitoredServiceRepository extends JpaRepository<MonitoredService, Long> {
     Optional<MonitoredService> findByName(String name);
+    boolean existsByName(String name);
+    void deleteByName(String name);
 }
